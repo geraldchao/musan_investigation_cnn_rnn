@@ -5,37 +5,45 @@
 # !rm musan.tar.gz
 
 
-!pip install tensorflow==1.13.*
 !git clone https://github.com/geraldchao/musan_investigation_cnn_rnn
+!pip install -r requirements.txt
 
 
 import sys
 sys.path.append('musan_investigation_cnn_rnn')
 
-# process dataset to raw
-from musan_investigation_cnn_rnn.create_database_h5py_raw import *
-!pip install python_speech_features
-from musan_investigation_cnn_rnn.create_database_h5py_derived import *
-cp musan_data_derived.h5 /content/drive/My\ Drive/dataset/
-
-from musan_investigation_cnn_rnn import my_models
 
 
 from google.colab import drive
 drive.mount('/content/drive')
-
 drive_path='/content/drive/My\ Drive/dataset'
 
-root_path = r'%s/musan_data_derived.h5' % drive_path
+
+# process dataset to raw
+from musan_investigation_cnn_rnn.create_database_h5py_raw import *
+# process raw to derived
+from musan_investigation_cnn_rnn.create_database_h5py_derived import *
+!cp musan_data_derived.h5 ${drive_path}
+
+# !cp ${drive_path}/musan_data_derived.h5 .
+
+from musan_investigation_cnn_rnn import my_models
+
+root_path = r'%s/musan_data_derived.h5' % '.'
+
+#drive_path='/datasets/audio/musan'
+#root_path = r'%s/musan_data_derived.h5' % drive_path
+
+output_path='%s/musan_out' % drive_path
 
 from musan_investigation_cnn_rnn.coloab_train_mobilenet import *
 
 X_train, Y_train, X_val, Y_val, X_test, Y_test = load_training_data( root_path )
 
 # start training
-model = do_train( X_train, Y_train )
+model, fhist = do_train( X_train, Y_train, X_val, Y_val, output_path  )
 
-run_eval(model, X_val, Y_val, X_test, Y_test )
+run_eval(model, fhist, X_val, Y_val, X_test, Y_test, output_path )
 '''
 
 import numpy as np
@@ -51,8 +59,10 @@ from keras.callbacks import *
 from sklearn.utils import shuffle
 from multiprocessing.pool import ThreadPool
 from math import ceil
-import sys
+import sys, os
 import h5py
+from h5py import Dataset
+
 from datetime import datetime
 from sklearn.metrics import accuracy_score, confusion_matrix, log_loss
 from plot_cm import plot_cm
@@ -62,9 +72,8 @@ import inspect
 codes=inspect.getsource(inspect.getmodule(inspect.currentframe()))
 
 np.random.seed(7)
-# root_path = r'e:\musan_data_derived.h5'   #Path to the derived features
 
-dtime = datetime.now().strftime('-%B-%d(%a)-%H-%H-%S')
+dtime = datetime.now().strftime('-%B-%d-%H-%H-%S')
 fname = Path(sys.argv[0]).stem
 
 train_split = .65
@@ -77,9 +86,6 @@ dtype = np.float16
 bsize = 128
 num_epochs=10
 
-resultf = './results/'+modelname+str(seg_len)+dtime+'.npz'
-modelf = './models/'+modelname+str(seg_len)+dtime+'.h5'
-modelff = './models/'+modelname+str(seg_len)+dtime+'_final.h5'
 
 ecatg = dict((c,i) for (i,c) in enumerate(['noise', 'music', 'speech']))
 
@@ -87,11 +93,13 @@ ecatg = dict((c,i) for (i,c) in enumerate(['noise', 'music', 'speech']))
 def load_training_data( root_path ):
     with h5py.File(root_path, mode='r') as db:
         fdict = dict((c, []) for c in ecatg)
-        for k in db.keys():
-            c = k.split('\\')[0]
-            if c in ecatg:
-                fdict[c].append(k)
         
+        for category in db.keys():
+            if category not in ecatg: continue
+            for item in db[category].keys():
+                file = '%s/%s' % ( category, item )
+                fdict[category].append(file)
+
         train, val, test = {}, {}, {}
         for k in fdict:
             np.random.shuffle(fdict[k])
@@ -127,8 +135,9 @@ def load_training_data( root_path ):
                     print('Concatenating {} {} files...'.format(ln, k.upper()))
                     for i, fl in enumerate(files):
                         if not i % 50:
-                            print('Read', str(i), 'out of', str(ln), 'files...')
-                        
+                            print('Read', str(i+1), 'out of', str(ln), 'files...')
+                            
+                        # print('fl: ', fl, type(db[fl]))
                         dat = frm_gen(db[fl][feat][:])
                         lbl = len(dat)*[float(ecatg[k])]
                         self.labels.append(lbl)
@@ -158,8 +167,13 @@ def load_training_data( root_path ):
     return X_train, Y_train, X_val, Y_val, X_test, Y_test
 
 
-def do_train( X_train, Y_train ):
+def do_train( X_train, Y_train, X_val, Y_val, output_path ):
     K.clear_session()
+
+    os.makedirs( output_path + '/models', exist_ok=True )
+    modelf = output_path + '/models/'+modelname+str(seg_len)+dtime+'.h5'
+    modelff = output_path + '/models/'+modelname+str(seg_len)+dtime+'_final.h5'
+    
 
     in_shape = X_train.shape[1:]
     model = get_model(in_shape, name=modelname)
@@ -180,16 +194,18 @@ def do_train( X_train, Y_train ):
                       callbacks=[mchk, lrs])
 
     model.save(modelff)
-    return model
+    return model, fhist
 
-def run_eval(model, X_val, Y_val, X_test, Y_test):
+def run_eval(model, fhist, X_val, Y_val, X_test, Y_test, output_path):
+    os.makedirs( output_path + '/results', exist_ok=True )
+    resultf = output_path + '/results/'+modelname+str(seg_len)+dtime+'.npz'
     
     Yp_val = model.predict(X_val, verbose=1, batch_size=256)
     Yp_test = model.predict(X_test, verbose=1, batch_size=256)
     np.savez(resultf, Y_val=Y_val, Yp_val=Yp_val, 
              Y_test=Y_test, Yp_test=Yp_test, 
-             fhist=fhist.history, ecatg=ecatg, codes = codes,
-             train=train, val=val, test=test)
+             fhist=fhist.history, ecatg=ecatg, codes = codes )
+    # train=train, val=val, test=test)
 
     ll_val = log_loss(Y_val, Yp_val)
     ll_test = log_loss(Y_test, Yp_test)

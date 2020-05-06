@@ -23,8 +23,8 @@ win_step = .010     #Time stem between consequetive windows
 # target_path = Path(r'e:\musan_data_raw.h5')  #path to the output file
 # root_path = Path(r'/content/drive/My\ Drive/dataset/musan')
 # target_path = Path(r'/content/drive/My\ Drive/dataset/musan_data_raw.h5')
-root_path = Path(r'/content/musan')
-target_path = Path(r'/content/musan/musan_data_raw.h5')
+root_path = Path(r'/datasets/audio/musan')
+target_path = Path(r'/datasets/audio/musan/musan_data_raw.h5')
 if target_path.exists():
     os.remove(str(target_path))
 
@@ -36,7 +36,7 @@ for c in catg:
 
 fdict = dict((k, list(roots[k].glob('**/*.wav'))) for k in roots)
 
-silence = {}
+# silence = {}
     
 
 def proc_file(file):
@@ -46,28 +46,34 @@ def proc_file(file):
     isig = np.concatenate(list(np.arange(*v) for v in sp), 0)
     isil = np.setdiff1d(np.arange(len(sig)), isig)
     sigp = sig[isig]
-    silence[file]=sig[isil]
+    sigsilence = sig[isil]
+    # silence[file]=sig[isil]
     
-    return (file,sigp)
+    return (file,sigp, sigsilence)
 
 with h5py.File(target_path, mode = 'w') as fl:
     fl.attrs['codes']=codes
     for key in fdict:
         print('\nProcessing', key, 'files: total =', len(fdict[key]))
         for i, processed in zip(count(),map(proc_file, iter(fdict[key]))):                                  
-            if not (i+1) % 5:
-                print(key.upper(), 'File', i+1, 'of', len(fdict[key]))
-                
-            file, sig = processed
-            file = str(file.relative_to(root_path))
+            file_path, sig, sigsilence = processed
+            file_path = str(file_path.relative_to(root_path))
+            file_key = ':'.join( file_path.split('/')[1:]) # strip out class
+            file = '%s/%s' % ( key, file_key ) # to avoid nested files
             fl[file] = sig
-        
+            if not (i+1) % 5:
+                print(key.upper(), 'File', i+1, 'of', str(len(fdict[key])) + ' ' + file)
+            k = 'silence/'+file
+            fl[k] = sigsilence
+                
+    '''
     print('\nProcessing silence... Len=', len(silence))
     for i, file in enumerate(silence):
-        if not (i+1) % 5:
-            print(key.upper(), 'File', i+1, 'of', len(fdict[key]))
-        k = 'silence\\'+str(file.relative_to(root_path))
+        k = 'silence/'+str(file.relative_to(root_path))
         fl[k] = silence[file]
+        if not (i+1) % 5:
+            print(key.upper(), 'File', i+1, 'of', str(len(fdict[key])) + ' ' + file)
+    ''' 
         
 print('\nDone!')
 

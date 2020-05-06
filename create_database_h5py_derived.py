@@ -6,6 +6,7 @@
 import numpy as np
 import python_speech_features as psf
 import h5py
+from h5py import Dataset
 import inspect
 from itertools import count
 import os
@@ -21,19 +22,21 @@ win_step = .010     #Time stem between consequetive windows
 
 # root_path = r'E:\musan_data_raw.h5'
 # target_path = r'e:\musan_data_derived.h5'
-root_path = Path(r'/content/musan/musan_data_raw.h5')
-# target_path = Path(r'/content/drive/My\ Drive/dataset/musan_data_derived.h5')
-target_path = Path(r'/content/musan_data_derived.h5')
+# root_path = r'/content/musan/musan_data_raw.h5'
+# target_path = r'/content/drive/My\ Drive/dataset/musan_data_derived.h5'
+# target_path = r'/content/musan_data_derived.h5'
+
+root_path = r'/datasets/audio/musan/musan_data_raw.h5'
+target_path = r'/datasets/audio/musan//musan_data_derived.h5'
 
 if os.path.exists(target_path):
-    if input('Target path exists... REMOVE? [Y/N] :').lower()=='y':
-        os.remove(str(target_path))
+    os.remove(str(target_path))
 
 db = h5py.File(root_path, 'r')
-catg = ['noise', 'music', 'speech', 'silence']
+categ = ['noise', 'music', 'speech', 'silence']
 
-keys = list(db.keys())
-fdict = dict((k, list(kk for kk in keys if kk.split('\\')[0]==k)) for k in catg)
+# keys = list(db.keys())
+# fdict = dict((k, list(kk for kk in keys if kk.split('\\')[0]==k)) for k in categ)
 
 
 def proc_file(file):
@@ -54,18 +57,23 @@ def proc_file(file):
 
 with h5py.File(target_path, mode = 'w-') as fl:
     fl.attrs['codes']=codes
-    for key in fdict:
-        print('\nProcessing', key, 'files: total =', len(fdict[key]))
-    
-        for i, file in zip(count(),fdict[key]):                                  
-            if not (i+1) % 5:
-                print(key.upper(), 'File', i+1, 'of', len(fdict[key]))
-            
+    for key in categ:
+        print('\nProcessing', key)
+
+        def visit_file(file_path):
+            file = '%s/%s' % (key, file_path)
+            print('file: ', file)
+            # if not type(db[file]) == Dataset: return
             if db[file].shape[0]>win_len*fs:
                 file,mfcc, mfb= proc_file(file)
                 grp = fl.create_group(file)
                 for nm, vl in zip(('mfcc', 'mfb'), (mfcc, mfb)):
                     grp[nm] = vl
+
+        if key not in db: continue
+        group = db[key]
+        for item in group.keys():
+            visit_file( item )
 
 db.close()
 print('\nDone!')
