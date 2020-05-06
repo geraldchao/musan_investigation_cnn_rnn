@@ -1,9 +1,23 @@
 '''
+# !curl -O 'http://www.openslr.org/resources/17/musan.tar.gz'
+## cp musan.tar.gz /content/drive/My\ Drive/dataset/musan 
+# !tar xzf musan.tar.gz'
+# !rm musan.tar.gz
+
+
 !pip install tensorflow==1.13.*
 !git clone https://github.com/geraldchao/musan_investigation_cnn_rnn
 
+
 import sys
 sys.path.append('musan_investigation_cnn_rnn')
+
+# process dataset to raw
+from musan_investigation_cnn_rnn.create_database_h5py_raw import *
+!pip install python_speech_features
+from musan_investigation_cnn_rnn.create_database_h5py_derived import *
+cp musan_data_derived.h5 /content/drive/My\ Drive/dataset/
+
 from musan_investigation_cnn_rnn import my_models
 
 
