@@ -11,7 +11,8 @@ import tensorflow as tf
 from custom_layers import *
 from keras.callbacks import *
 
-from keras.applications.mobilenet import MobileNet, relu6, DepthwiseConv2D
+# from keras.applications.mobilenet import MobileNet, relu6, DepthwiseConv2D
+from keras.applications import MobileNet
 from keras.utils.generic_utils import CustomObjectScope
 
 def get_gru(in_shape, name='', num_classes=3):
@@ -38,7 +39,10 @@ def get_gru(in_shape, name='', num_classes=3):
     
     return Model(in_t, out_t, name=name or 'MobileNet')
 
-
+'''
+from my_models import get_mobile_net
+model=get_mobile_net((160,160))
+'''
 def get_mobile_net(in_shape, name='', num_classes=3):
     in_t = Input(shape=in_shape)
     x = in_t
@@ -47,8 +51,9 @@ def get_mobile_net(in_shape, name='', num_classes=3):
                            pooling='avg', weights='imagenet')#'imagenet'
     
     def run_thru(x, name=None):
-        with CustomObjectScope({'relu6': relu6,
-                                'DepthwiseConv2D': DepthwiseConv2D}):
+        # with CustomObjectScope({'relu6': relu6,
+        # 'DepthwiseConv2D': DepthwiseConv2D}):
+        with CustomObjectScope({}):
             tdict = {base_model.input: x}
             lrs = base_model.layers[1:]
             for k, lr in zip(range(len(lrs), 0, -1), lrs):
