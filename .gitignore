@@ -104,3 +104,4 @@ python_boilerplate/
 # pyenv python configuration file
 .python-version
 .virtualenvs
+models

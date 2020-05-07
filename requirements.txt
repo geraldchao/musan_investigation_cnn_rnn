@@ -5,4 +5,5 @@ h5py
 python_speech_features
 librosa
 llvmlite==0.31.0
+keras
 tensorflow==1.13.*

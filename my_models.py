@@ -41,14 +41,15 @@ def get_gru(in_shape, name='', num_classes=3):
 
 '''
 from my_models import get_mobile_net
-model=get_mobile_net((160,160))
+model=get_mobile_net((200,64))
 '''
-def get_mobile_net(in_shape, name='', num_classes=3):
+def get_mobile_net(in_shape, name='', num_classes=3, load_weights=True):
     in_t = Input(shape=in_shape)
     x = in_t
+    weights = 'imagenet' if load_weights else None
     base_model = MobileNet(include_top=False, input_shape=(160, 160, 3),
                            alpha=.25, depth_multiplier=1, dropout=0.25,
-                           pooling='avg', weights='imagenet')#'imagenet'
+                           pooling='avg', weights=weights)#'imagenet'
     
     def run_thru(x, name=None):
         # with CustomObjectScope({'relu6': relu6,
